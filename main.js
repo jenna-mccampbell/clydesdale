@@ -6,6 +6,7 @@ import { h, Component, render } from "https://unpkg.com/preact?module";
  * @param {number} x the number of inner arrays
  * @param {number} y the length of inner arrays
  * @param {any} item the item the inner arrays are initially filled with
+ * @returns {any[][]}
  */
 function create2dArray(x, y, item) {
   let arr = Array(x);
