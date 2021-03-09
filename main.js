@@ -1,178 +1,265 @@
-const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+import { h, Component, render } from "https://unpkg.com/preact?module";
 
-let box_size = 20;
-let grid;
-let warp_ends = 20;
-let shafts = 4;
-let treadles = 6;
-let pat_length = 20;
-let state = {
-  treadling: createArray(treadles, pat_length, false),
-  threading: createArray(warp_ends, shafts, false),
-  tie_up: createArray(treadles, shafts, false),
-};
-
-function init() {
-  grid = d3
-    .select("#grid")
-    .append("svg")
-    .attr("width", "1000px")
-    .attr("height", "1000px");
-  draw();
-}
-
-window.onresize = function () {};
-
-function draw() {
-  d3.select("svg").selectAll("*").remove();
-  let margin = 20;
-
-  // grid for threading
-  drawGrid(
-    margin,
-    margin,
-    shafts,
-    warp_ends,
-    "threading",
-    true,
-    state.threading
-  );
-
-  // grid for tie up
-  drawGrid(
-    margin + box_size * warp_ends + margin,
-    margin,
-    shafts,
-    treadles,
-    "tieup",
-    true,
-    state.tie_up
-  );
-
-  //grid for treadling
-  drawGrid(
-    margin + box_size * warp_ends + margin,
-    margin + box_size * shafts + margin,
-    pat_length,
-    treadles,
-    "treadling",
-    true,
-    state.treadling
-  );
-
-  fabric = weave(state.treadling, state.threading, state.tie_up);
-  console.log(fabric);
-
-  //grid for fabric
-  drawGrid(
-    margin,
-    margin + box_size * shafts + margin,
-    pat_length,
-    warp_ends,
-    "fabric",
-    false,
-    fabric
-  );
-}
-
-function getRectColor(row_index, col_index) {
-  return "#FFFFFF";
-}
-
-function drawGrid(start_x, start_y, row_num, col_num, name, clickable, arr) {
-  console.log(name);
-  let data = new Array();
-  for (let row_index = 0; row_index < row_num; row_index++) {
-    data.push(new Array());
-    for (let col_index = 0; col_index < col_num; col_index++) {
-      let rect_x = start_x + col_index * box_size;
-      let rect_y = start_y + row_index * box_size;
-      data[row_index].push({
-        x: rect_x,
-        y: rect_y,
-        width: box_size,
-        height: box_size,
-        row_index: row_index,
-        col_index: col_index,
-      });
-    }
-  }
-
-  let row = grid
-    .selectAll("." + name)
-    .data(data)
-    .enter()
-    .append("g")
-    .attr("class", name);
-
-  let column = row
-    .selectAll(".square")
-    .data(function (d) {
-      return d;
-    })
-    .enter()
-    .append("rect")
-    .attr("class", "square")
-    .attr("x", function (d) {
-      return d.x;
-    })
-    .attr("y", function (d) {
-      return d.y;
-    })
-    .attr("width", function (d) {
-      return d.width;
-    })
-    .attr("height", function (d) {
-      return d.height;
-    })
-    .style("fill", function (d) {
-      if (arr) {
-        console.log(name, arr[d.row_index][d.col_index]);
-        if (arr[d.row_index][d.col_index]) {
-          return "#838690";
-        } else {
-          return "#fff";
-        }
-      }
-    })
-    .style("stroke", "#222")
-    .on("click", function (d) {
-      if (clickable) {
-        arr[d.row_index][d.col_index] ^= true;
-        draw();
-      }
-    });
-}
-
-function handleUserInput(a) {
-  console.log(a);
-}
-
-function createArray(x, y, item) {
-  let arr = new Array(x);
-  for (let i = 0; i < y; i++) {
-    arr[i] = new Array(y);
-    arr[i].fill(item);
+/**
+ * Creates a 2d array
+ *
+ * @param {number} x the number of inner arrays
+ * @param {number} y the length of inner arrays
+ * @param {any} item the item the inner arrays are initially filled with
+ */
+function create2dArray(x, y, item) {
+  let arr = Array(x);
+  for (let i = 0; i < x; i++) {
+    arr[i] = Array(y).fill(item);
   }
   return arr;
 }
 
+/**
+ * Creates the pattern of the woven fabric based on the treadling, threading,
+ * and tie up.
+ *
+ * @param {number[]} treadling - treadling is an array with the same length as the
+ * number of weft threads in the fabric, where each entry is the index of the treadle
+ * which is engaged when weaving that thread. A value of undefined means that
+ * no treadle is engaged, and we show that in the resultant fabric by having the
+ * weft thread always be above the warp.
+ *
+ * @param {number[]} threading - threading is an array with the same length as the
+ * number of warp threads in the fabric, where each entry is the index of the shaft
+ * that the thread is threaded through. A value of undefined means that the thread
+ * goes through none of the shafts, and by we show that in the resultant fabric
+ * by having the warp thread always be below the weft.
+ *
+ * @param {boolean[][]} tie_up - tie_up is a 2d array of booleans. When indexed with
+ * the index of a treadle and then the index of a shaft, the boolean stored indicates
+ * whether or not that treadle is tied to that shaft.
+ *
+ * @returns {boolean[][]} the resultant fabric, a 2d array of booleans. When indexed
+ * with the index of a warp thread and then the index of a weft thread, the boolean
+ * stored indicates whether or not the warp thread is above the weft thread.
+ */
 function weave(treadling, threading, tie_up) {
-  fabric = createArray(threading[0].length, treadling.length, false);
-  for (let i = 0; i < fabric.length; i++) {
-    for (let j = 0; j < fabric[0].length; j++) {
-      threading_state = threading.map((row) => row[j]);
-      treadling_state = treadling[i];
-      thread_shaft = threading_state.findIndex((element) => element);
-      if (thread_shaft == -1) {
-        fabric_state = false;
-      } else {
-        fabric_state = zip(tie_up[thread_shaft], treadling_state).some(
-          (arr) => arr[0] && arr[1]
-        );
+  let fabric = create2dArray(threading.length, treadling.length, false);
+  for (let warp_thread = 0; warp_thread < threading.length; warp_thread++) {
+    let shaft = threading[warp_thread];
+    if (shaft == undefined) {
+      fabric[warp_thread].fill(false);
+    } else {
+      for (let weft_thread = 0; weft_thread < treadling.length; weft_thread++) {
+        let treadle = treadling[weft_thread];
+        if (treadle == undefined) {
+          fabric[warp_thread][weft_thread] = false;
+        } else {
+          fabric[warp_thread][weft_thread] = tie_up[treadle][shaft];
+        }
       }
-      fabric[i][j] = fabric_state;
     }
   }
   return fabric;
 }
+
+function Square(props) {
+  return h("rect", {
+    width: props.box_size,
+    height: props.box_size,
+    x: props.x_loc,
+    y: props.y_loc,
+    style: { fill: props.getColor(props.x, props.y), stroke: "#222" },
+    onClick: () => props.click(props.x, props.y),
+  });
+}
+
+function Grid(props) {
+  let data = [];
+  for (let row_index = 0; row_index < props.row_num; row_index++) {
+    for (let col_index = 0; col_index < props.col_num; col_index++) {
+      let rect_x = props.start_x + col_index * props.box_size;
+      let rect_y = props.start_y + row_index * props.box_size;
+      data.push(
+        h(Square, {
+          x_loc: rect_x,
+          y_loc: rect_y,
+          x: col_index,
+          y: row_index,
+          box_size: props.box_size,
+          ...props.square_props,
+        })
+      );
+    }
+  }
+  return h("g", {}, data);
+}
+
+function Threading(props) {
+  let start_x = props.margin;
+  let start_y = props.margin;
+
+  return h(Grid, {
+    start_x: start_x,
+    start_y: start_y,
+    box_size: props.box_size,
+    row_num: props.shafts,
+    col_num: props.warp_ends,
+    square_props: {
+      getColor: (x, y) => (props.threading[x] == y ? "#222" : "#fff"),
+      click: (x, y) => {
+        props.thread(x, y);
+      },
+    },
+  });
+}
+
+function Treadling(props) {
+  let start_x = props.margin + props.box_size * props.warp_ends + props.margin;
+  let start_y = props.margin + props.box_size * props.shafts + props.margin;
+
+  return h(Grid, {
+    start_x: start_x,
+    start_y: start_y,
+    box_size: props.box_size,
+    row_num: props.pat_length,
+    col_num: props.treadles,
+    square_props: {
+      getColor: (x, y) => (props.treadling[y] == x ? "#222" : "#fff"),
+      click: (x, y) => {
+        props.treadle(y, x);
+      },
+    },
+  });
+}
+
+function TieUp(props) {
+  let start_x = props.margin + props.box_size * props.warp_ends + props.margin;
+  let start_y = props.margin;
+
+  return h(Grid, {
+    start_x: start_x,
+    start_y: start_y,
+    box_size: props.box_size,
+    row_num: props.shafts,
+    col_num: props.treadles,
+    square_props: {
+      getColor: (x, y) => (props.tie_up[x][y] ? "#222" : "#fff"),
+      click: (x, y) => {
+        props.tie(x, y);
+      },
+    },
+  });
+}
+
+function Fabric(props) {
+  let start_x = props.margin;
+  let start_y = props.margin + props.box_size * props.shafts + props.margin;
+
+  return h(Grid, {
+    start_x: start_x,
+    start_y: start_y,
+    box_size: props.box_size,
+    row_num: props.pat_length,
+    col_num: props.warp_ends,
+    square_props: {
+      getColor: (x, y) => (props.fabric[x][y] ? "#222" : "#fff"),
+      // nothing happens when you click on the fabric
+      click: () => {},
+    },
+  });
+}
+
+/** Top level component for weaving grid */
+class Weaver extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      // For threading and treadling, we have an array of values that indicate
+      // which shaft or treadle is engaged. undefined means there is no engaged
+      // shaft or treadle.
+      treadling: Array(props.pat_length).fill(undefined),
+      threading: Array(props.warp_ends).fill(undefined),
+      tie_up: create2dArray(props.treadles, props.shafts, false),
+    };
+  }
+
+  /** engages (or disengages) the treadle at given location */
+  treadle(weft_location, treadle_pushed) {
+    this.setState((state, _) => {
+      let new_treadling = [...state.treadling];
+      if (state.treadling[weft_location] == treadle_pushed) {
+        new_treadling[weft_location] = undefined;
+      } else {
+        new_treadling[weft_location] = treadle_pushed;
+      }
+      return {
+        treadling: new_treadling,
+      };
+    });
+  }
+
+  /** threads (or unthreads) the warp yarn at a given shaft */
+  thread(warp_location, shaft_threaded) {
+    this.setState((state, _) => {
+      let new_threading = [...state.threading];
+      if (state.threading[warp_location] == shaft_threaded) {
+        new_threading[warp_location] = undefined;
+      } else {
+        new_threading[warp_location] = shaft_threaded;
+      }
+      return {
+        threading: new_threading,
+      };
+    });
+  }
+
+  /** ties the given treadle to the given shaft */
+  tie(treadle, shaft) {
+    this.setState((state, _) => {
+      let new_tie_up = Array.from(state.tie_up, (arr) => [...arr]);
+      new_tie_up[treadle][shaft] = !state.tie_up[treadle][shaft];
+      return {
+        tie_up: new_tie_up,
+      };
+    });
+  }
+
+  render() {
+    let sub_props = { margin: 20, box_size: 20, ...this.props };
+
+    return h(
+      "svg",
+      { width: 1000, height: 1000 },
+      h(Threading, {
+        thread: (warp, shaft) => this.thread(warp, shaft),
+        threading: this.state.threading,
+        ...sub_props,
+      }),
+      h(Treadling, {
+        treadle: (weft, treadle) => this.treadle(weft, treadle),
+        treadling: this.state.treadling,
+        ...sub_props,
+      }),
+      h(TieUp, {
+        tie: (shaft, treadle) => this.tie(shaft, treadle),
+        tie_up: this.state.tie_up,
+        ...sub_props,
+      }),
+      h(Fabric, {
+        fabric: weave(
+          this.state.treadling,
+          this.state.threading,
+          this.state.tie_up
+        ),
+        ...sub_props,
+      })
+    );
+  }
+}
+
+render(
+  h(Weaver, {
+    warp_ends: 20,
+    shafts: 4,
+    treadles: 6,
+    pat_length: 20,
+  }),
+  document.body
+);
