@@ -112,8 +112,24 @@ function Threading(props) {
 }
 
 function Treadling(props) {
-  let start_x = props.margin + props.box_size * props.warp_ends + props.margin;
-  let start_y = props.margin + props.box_size * props.shafts + props.margin;
+  let start_x =
+    // Fabric
+    props.margin +
+    props.box_size * props.warp_ends +
+    // WeftColors
+    props.margin +
+    props.box_size +
+    // margin
+    props.margin;
+  let start_y =
+    // Threading
+    props.margin +
+    props.box_size * props.shafts +
+    // WarpColors
+    props.margin +
+    props.box_size +
+    // margin
+    props.margin;
 
   return h(Grid, {
     start_x: start_x,
@@ -131,7 +147,15 @@ function Treadling(props) {
 }
 
 function TieUp(props) {
-  let start_x = props.margin + props.box_size * props.warp_ends + props.margin;
+  let start_x =
+    // Fabric
+    props.margin +
+    props.box_size * props.warp_ends +
+    // WeftColors
+    props.margin +
+    props.box_size +
+    // margin
+    props.margin;
   let start_y = props.margin;
 
   return h(Grid, {
@@ -149,9 +173,59 @@ function TieUp(props) {
   });
 }
 
-function Fabric(props) {
+function WarpColors(props) {
   let start_x = props.margin;
   let start_y = props.margin + props.box_size * props.shafts + props.margin;
+
+  return h(Grid, {
+    start_x: start_x,
+    start_y: start_y,
+    box_size: props.box_size,
+    row_num: 1,
+    col_num: props.warp_ends,
+    square_props: {
+      getColor: (x, _) => props.palette[props.warp_colors[x]],
+      click: (x, _) => props.color_warp(x),
+    },
+  });
+}
+
+function WeftColors(props) {
+  let start_x = props.margin + props.box_size * props.warp_ends + props.margin;
+  let start_y =
+    // Threading
+    props.margin +
+    props.box_size * props.shafts +
+    // WarpColors
+    props.margin +
+    props.box_size +
+    // margin
+    props.margin;
+
+  return h(Grid, {
+    start_x: start_x,
+    start_y: start_y,
+    box_size: props.box_size,
+    row_num: props.pat_length,
+    col_num: 1,
+    square_props: {
+      getColor: (_, y) => props.palette[props.weft_colors[y]],
+      click: (_, y) => props.color_weft(y),
+    },
+  });
+}
+
+function Fabric(props) {
+  let start_x = props.margin;
+  let start_y =
+    // Threading
+    props.margin +
+    props.box_size * props.shafts +
+    // WarpColors
+    props.margin +
+    props.box_size +
+    // margin
+    props.margin;
 
   return h(Grid, {
     start_x: start_x,
@@ -160,7 +234,10 @@ function Fabric(props) {
     row_num: props.pat_length,
     col_num: props.warp_ends,
     square_props: {
-      getColor: (x, y) => (props.fabric[x][y] ? "#222" : "#fff"),
+      getColor: (x, y) =>
+        props.fabric[x][y]
+          ? props.palette[props.warp_colors[x]]
+          : props.palette[props.weft_colors[y]],
       // nothing happens when you click on the fabric
       click: () => {},
     },
@@ -178,6 +255,9 @@ class Weaver extends Component {
       treadling: Array(props.pat_length).fill(undefined),
       threading: Array(props.warp_ends).fill(undefined),
       tie_up: create2dArray(props.treadles, props.shafts, false),
+      weft_colors: Array(props.pat_length).fill(0),
+      warp_colors: Array(props.warp_ends).fill(1),
+      palette: props.palette,
     };
   }
 
@@ -211,6 +291,30 @@ class Weaver extends Component {
     });
   }
 
+  /** changes the color of the indicated warp thread */
+  color_warp(warp_location) {
+    this.setState((state, _) => {
+      let new_warp_colors = [...state.warp_colors];
+      new_warp_colors[warp_location] =
+        (state.warp_colors[warp_location] + 1) % state.palette.length;
+      return {
+        warp_colors: new_warp_colors,
+      };
+    });
+  }
+
+  /** changes the color of the indicated warp thread */
+  color_weft(weft_location) {
+    this.setState((state, _) => {
+      let new_weft_colors = [...state.weft_colors];
+      new_weft_colors[weft_location] =
+        (state.weft_colors[weft_location] + 1) % state.palette.length;
+      return {
+        weft_colors: new_weft_colors,
+      };
+    });
+  }
+
   /** ties the given treadle to the given shaft */
   tie(treadle, shaft) {
     this.setState((state, _) => {
@@ -233,9 +337,19 @@ class Weaver extends Component {
         threading: this.state.threading,
         ...sub_props,
       }),
+      h(WarpColors, {
+        warp_colors: this.state.warp_colors,
+        color_warp: (x) => this.color_warp(x),
+        ...sub_props,
+      }),
       h(Treadling, {
         treadle: (weft, treadle) => this.treadle(weft, treadle),
         treadling: this.state.treadling,
+        ...sub_props,
+      }),
+      h(WeftColors, {
+        weft_colors: this.state.weft_colors,
+        color_weft: (x) => this.color_weft(x),
         ...sub_props,
       }),
       h(TieUp, {
@@ -249,6 +363,8 @@ class Weaver extends Component {
           this.state.threading,
           this.state.tie_up
         ),
+        warp_colors: this.state.warp_colors,
+        weft_colors: this.state.weft_colors,
         ...sub_props,
       })
     );
@@ -261,6 +377,7 @@ render(
     shafts: 4,
     treadles: 6,
     pat_length: 20,
+    palette: ["#466365", "#B49A67", "#CEB3AB", "#C4C6E7", "#BAA5FF"],
   }),
   document.body
 );
